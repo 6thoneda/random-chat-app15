@@ -11,7 +11,6 @@ import { Globe, User, Users, ChevronDown } from 'lucide-react';
 
 export default function OnboardingScreen() {
   const [username, setUsername] = useState('');
-  const [gender, setGender] = useState('');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { language, setLanguage, t } = useLanguage();
@@ -19,7 +18,7 @@ export default function OnboardingScreen() {
   const auth = getAuth(firebaseApp);
 
   const handleContinue = async () => {
-    if (username.trim() && gender && !isLoading) {
+    if (username.trim() && !isLoading) {
       setIsLoading(true);
       
       try {
@@ -28,18 +27,17 @@ export default function OnboardingScreen() {
           throw new Error('No authenticated user found');
         }
 
-        // Save user data to Firestore and mark onboarding as complete
+        // Save user data to Firestore (onboarding not complete yet - gender selection next)
         const userDocRef = doc(db, "users", user.uid);
         await setDoc(userDocRef, {
           username: username.trim(),
-          gender,
           language,
-          onboardingComplete: true,
+          onboardingComplete: false, // Will be set to true after gender selection
           updatedAt: new Date()
         }, { merge: true });
 
         console.log('User onboarding data saved to Firestore');
-        navigate('/');
+        navigate('/gender-select');
       } catch (error) {
         console.error('Error saving onboarding data:', error);
         alert('Error saving your information. Please try again.');
@@ -64,14 +62,13 @@ export default function OnboardingScreen() {
       const userDocRef = doc(db, "users", user.uid);
       await setDoc(userDocRef, {
         username: 'User',
-        gender: 'other',
         language,
-        onboardingComplete: true,
+        onboardingComplete: false, // Will be set to true after gender selection
         updatedAt: new Date()
       }, { merge: true });
 
       console.log('User skipped onboarding, minimal data saved to Firestore');
-      navigate('/');
+      navigate('/gender-select');
     } catch (error) {
       console.error('Error saving skip data:', error);
       alert('Error completing setup. Please try again.');
@@ -160,36 +157,11 @@ export default function OnboardingScreen() {
             />
           </div>
 
-          {/* Gender Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              {t('onboarding.gender')}
-            </label>
-            <div className="grid grid-cols-1 gap-3">
-              {genderOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setGender(option.value)}
-                  className={`py-3 px-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                    gender === option.value 
-                      ? 'border-purple-500 bg-purple-50 text-purple-700' 
-                      : 'border-gray-300 text-gray-700 hover:border-purple-300 hover:bg-purple-25'
-                  }`}
-                  disabled={isLoading}
-                >
-                  <span className="text-2xl">{option.emoji}</span>
-                  <span className="font-medium">{option.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Action Buttons */}
           <div className="space-y-3 pt-4">
             <Button
               onClick={handleContinue}
-              disabled={!username.trim() || !gender || isLoading}
+              disabled={!username.trim() || isLoading}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 transition-all duration-200"
             >
               {isLoading ? (

@@ -2,7 +2,7 @@ import "./App.css";
 import { Routes, Route } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { getAuth, signInAnonymously, User } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { firebaseApp, db } from "./firebaseConfig";
 
 import VideoChat from "./screens/VideoChat";
@@ -29,8 +29,21 @@ interface UserData {
   username: string | null;
   language: string;
   referredBy: string | null;
+  referralId?: string;
+  referralCount?: number;
+  referredAt?: any;
   createdAt: any;
 }
+
+// Generate a unique referral ID
+const generateUniqueReferralId = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -60,6 +73,8 @@ function App() {
               username: null,
               language: 'en', // Default language
               referredBy: null,
+              referralId: generateUniqueReferralId(),
+              referralCount: 0,
               createdAt: new Date()
             };
 
@@ -72,6 +87,21 @@ function App() {
             // Existing user - check onboarding status
             const userData = userDocSnap.data() as UserData;
             console.log("Existing user data:", userData);
+
+            // Backfill referralId and referralCount for existing users
+            const updateFields: Partial<UserData> = {};
+            if (!userData.referralId) {
+              updateFields.referralId = generateUniqueReferralId();
+            }
+            if (typeof userData.referralCount !== 'number') {
+              updateFields.referralCount = 0;
+            }
+            
+            // Update document if any fields need to be backfilled
+            if (Object.keys(updateFields).length > 0) {
+              await updateDoc(userDocRef, updateFields);
+              console.log("Backfilled missing fields:", updateFields);
+            }
 
             if (!userData.onboardingComplete) {
               // User exists but onboarding not complete
