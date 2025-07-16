@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
-import { doc, getDoc, updateDoc, collection, query, where, getDocs, increment } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, increment, serverTimestamp } from "firebase/firestore";
 import { firebaseApp, db } from "../firebaseConfig";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -14,6 +14,12 @@ export default function GenderSelect() {
   const [referralError, setReferralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingGender, setIsCheckingGender] = useState(true);
+
+  const genderOptions = [
+    { value: 'female', label: 'Female', emoji: '👩' },
+    { value: 'male', label: 'Male', emoji: '👨' },
+    { value: 'other', label: 'Other', emoji: '🧑' },
+  ];
 
   // Check if gender already selected
   useEffect(() => {
