@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
-import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp, db } from '../firebaseConfig';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { useLanguage, languages, Language } from '../context/LanguageProvider';
-import { Globe, User, Users, ChevronDown } from 'lucide-react';
+import { Globe, User, ChevronDown } from 'lucide-react';
 
 export default function OnboardingScreen() {
   const [username, setUsername] = useState('');
@@ -20,23 +20,20 @@ export default function OnboardingScreen() {
   const handleContinue = async () => {
     if (username.trim() && !isLoading) {
       setIsLoading(true);
-      
       try {
         const user = auth.currentUser;
-        if (!user) {
-          throw new Error('No authenticated user found');
-        }
+        if (!user) throw new Error('No authenticated user found');
 
-        // Save user data to Firestore (onboarding not complete yet - gender selection next)
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userData = {
           username: username.trim(),
           language,
-          onboardingComplete: false, // Will be set to true after gender selection
+          onboardingComplete: false,
           updatedAt: new Date()
-        }, { merge: true });
+        };
 
-        console.log('User onboarding data saved to Firestore');
+        await setDoc(userDocRef, userData, { merge: true });
+        localStorage.setItem("ajnabicam_user_data", JSON.stringify(userData));
         navigate('/gender-select');
       } catch (error) {
         console.error('Error saving onboarding data:', error);
@@ -49,25 +46,21 @@ export default function OnboardingScreen() {
 
   const handleSkip = async () => {
     if (isLoading) return;
-    
     setIsLoading(true);
-    
     try {
       const user = auth.currentUser;
-      if (!user) {
-        throw new Error('No authenticated user found');
-      }
+      if (!user) throw new Error('No authenticated user found');
 
-      // Save minimal data to Firestore and mark onboarding as complete
-      const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userData = {
         username: 'User',
         language,
-        onboardingComplete: false, // Will be set to true after gender selection
+        onboardingComplete: false,
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      };
 
-      console.log('User skipped onboarding, minimal data saved to Firestore');
+      await setDoc(userDocRef, userData, { merge: true });
+      localStorage.setItem("ajnabicam_user_data", JSON.stringify(userData));
       navigate('/gender-select');
     } catch (error) {
       console.error('Error saving skip data:', error);
@@ -77,18 +70,11 @@ export default function OnboardingScreen() {
     }
   };
 
-  const genderOptions = [
-    { value: 'male', label: t('onboarding.gender.male'), emoji: '👨' },
-    { value: 'female', label: t('onboarding.gender.female'), emoji: '👩' },
-    { value: 'other', label: t('onboarding.gender.other'), emoji: '🧑' },
-  ];
-
   const currentLanguage = languages.find(lang => lang.code === language);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100 flex items-center justify-center px-4">
       <Card className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 relative">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="text-6xl mb-4">🎥</div>
           <h1 className="text-3xl font-bold text-purple-800 mb-2">
@@ -98,7 +84,6 @@ export default function OnboardingScreen() {
         </div>
 
         <div className="space-y-6">
-          {/* Language Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
               <Globe className="h-4 w-4" />
@@ -116,7 +101,7 @@ export default function OnboardingScreen() {
                 </div>
                 <ChevronDown className={`h-4 w-4 transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} />
               </button>
-              
+
               {showLanguageDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto">
                   {languages.map((lang) => (
@@ -140,7 +125,6 @@ export default function OnboardingScreen() {
             </div>
           </div>
 
-          {/* Username Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
               <User className="h-4 w-4" />
@@ -157,7 +141,6 @@ export default function OnboardingScreen() {
             />
           </div>
 
-          {/* Action Buttons */}
           <div className="space-y-3 pt-4">
             <Button
               onClick={handleContinue}
@@ -173,7 +156,7 @@ export default function OnboardingScreen() {
                 t('onboarding.continue')
               )}
             </Button>
-            
+
             <Button
               onClick={handleSkip}
               variant="outline"
@@ -185,7 +168,6 @@ export default function OnboardingScreen() {
           </div>
         </div>
 
-        {/* Privacy Note */}
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
             🔒 Your information is kept private and secure
