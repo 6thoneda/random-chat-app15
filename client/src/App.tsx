@@ -94,6 +94,7 @@ function App() {
               await updateDoc(userDocRef, updateFields);
               console.log("Backfilled missing fields:", updateFields);
             }
+          }
 
           if (userData.referredBy === undefined) {
             updateFields.referredBy = null;
@@ -108,6 +109,7 @@ function App() {
             updateFields.createdAt = serverTimestamp();
           }
             if (!userData.onboardingComplete) {
+            }
           // Backfill missing fields for existing users
               navigate("/onboarding", { replace: true });
           if (!userData.ownReferralCode) {
