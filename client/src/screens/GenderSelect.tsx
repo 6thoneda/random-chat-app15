@@ -46,10 +46,13 @@ export default function GenderSelect() {
     checkGenderStatus();
   }, [navigate, auth]);
 
-  const handleSelect = async (gender: string) => {
+  const handleContinue = async () => {
+    if (!selectedGender || isLoading) return;
+    
     if (isLoading) return;
     
     setIsLoading(true);
+    setReferralError('');
     
     try {
       const user = auth.currentUser;
@@ -57,18 +60,76 @@ export default function GenderSelect() {
         throw new Error('No authenticated user found');
       }
 
-      // Update gender in Firestore
       const userDocRef = doc(db, "users", user.uid);
-      await updateDoc(userDocRef, {
-        gender: gender,
-        updatedAt: new Date()
-      });
+      
+      // Fetch current user's data to check referredBy status
+      const userDocSnap = await getDoc(userDocRef);
+      if (!userDocSnap.exists()) {
+        throw new Error('User document not found');
+      }
+      
+      const currentUserData = userDocSnap.data();
+      let updateData: any = {
+        gender: selectedGender,
+        onboardingComplete: true,
+        updatedAt: serverTimestamp()
+      };
+      
+      // Process referral code if provided
+      if (referralCodeInput.trim()) {
+        const referralCode = referralCodeInput.trim();
+        
+        // Query for user with matching ownReferralCode
+        const referrerQuery = query(
+          collection(db, "users"),
+          where("ownReferralCode", "==", referralCode)
+        );
+        
+        const referrerSnapshot = await getDocs(referrerQuery);
+        
+        if (referrerSnapshot.empty) {
+          setReferralError("Invalid referral code.");
+          return;
+        }
+        
+        const referrerDoc = referrerSnapshot.docs[0];
+        const referrerUid = referrerDoc.id;
+        
+        // Check for self-referral
+        if (referrerUid === user.uid) {
+          setReferralError("You cannot use your own referral code.");
+          return;
+        }
+        
+        // Check if user hasn't been referred before
+        if (currentUserData.referredBy === null) {
+          // Grant 24h premium
+          const premiumExpiryTime = Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000);
+          
+          // Update current user with referral info and premium
+          updateData.referredBy = referrerUid;
+          updateData.premiumUntil = premiumExpiryTime;
+          updateData.referralCode = referralCode;
+          updateData.referredAt = serverTimestamp();
+          
+          // Increment referrer's count
+          await updateDoc(doc(db, "users", referrerUid), {
+            referralCount: increment(1)
+          });
+        } else {
+          setReferralError("You have already been referred by someone else.");
+          return;
+        }
+      }
+      
+      // Update current user's document
+      await setDoc(userDocRef, updateData, { merge: true });
 
-      console.log('Gender updated in Firestore:', gender);
+      console.log('User data updated in Firestore:', updateData);
       navigate("/");
     } catch (error) {
-      console.error("Error updating gender:", error);
-      alert('Error saving gender selection. Please try again.');
+      console.error("Error updating user data:", error);
+      setReferralError('Error saving your information. Please try again.');
     } finally {
       setIsLoading(false);
     }

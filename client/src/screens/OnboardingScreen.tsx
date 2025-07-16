@@ -64,7 +64,7 @@ export default function OnboardingScreen() {
         username: 'User',
         language,
         onboardingComplete: false, // Will be set to true after gender selection
-        updatedAt: new Date()
+        updatedAt: serverTimestamp()
       }, { merge: true });
 
       console.log('User skipped onboarding, minimal data saved to Firestore');

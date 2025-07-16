@@ -1,5 +1,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getAuth } from "firebase/auth";
+import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
 interface PremiumContextType {
   isPremium: boolean;
@@ -28,38 +31,104 @@ export const PremiumProvider = ({ children }: PremiumProviderProps) => {
 
   // Check premium status on mount
   useEffect(() => {
-    const savedPremium = localStorage.getItem("premium_status");
-    const savedExpiry = localStorage.getItem("premium_expiry");
-    
-    if (savedPremium && savedExpiry) {
-      const expiryDate = new Date(savedExpiry);
-      if (expiryDate > new Date()) {
-        setIsPremium(true);
-        setPremiumExpiry(expiryDate);
-      } else {
-        // Premium expired, clear storage
-        localStorage.removeItem("premium_status");
-        localStorage.removeItem("premium_expiry");
+    const checkPremiumStatus = async () => {
+      try {
+        const user = getAuth().currentUser;
+        if (!user) return;
+        
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          const premiumUntil = userData.premiumUntil;
+          
+          if (premiumUntil && premiumUntil.toMillis() > Date.now()) {
+            setIsPremium(true);
+            setPremiumExpiry(premiumUntil.toDate());
+          } else if (premiumUntil && premiumUntil.toMillis() <= Date.now()) {
+            // Premium expired, clear from Firestore
+            await updateDoc(userDocRef, { premiumUntil: null });
+            setIsPremium(false);
+            setPremiumExpiry(null);
+          } else {
+            setIsPremium(false);
+            setPremiumExpiry(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking premium status:", error);
+        setIsPremium(false);
+        setPremiumExpiry(null);
       }
-    }
+    };
+    
+    checkPremiumStatus();
   }, []);
 
-  const setPremium = (premium: boolean, expiry?: Date) => {
-    setIsPremium(premium);
-    if (premium && expiry) {
-      setPremiumExpiry(expiry);
-      localStorage.setItem("premium_status", "true");
-      localStorage.setItem("premium_expiry", expiry.toISOString());
-    } else {
-      setPremiumExpiry(null);
-      localStorage.removeItem("premium_status");
-      localStorage.removeItem("premium_expiry");
+  const setPremium = async (premium: boolean, expiry?: Date) => {
+    try {
+      const user = getAuth().currentUser;
+      if (!user) return;
+      
+      const userDocRef = doc(db, "users", user.uid);
+      
+      if (premium && expiry) {
+        const premiumTimestamp = Timestamp.fromDate(expiry);
+        await updateDoc(userDocRef, { premiumUntil: premiumTimestamp });
+        setPremiumExpiry(expiry);
+      } else {
+        await updateDoc(userDocRef, { premiumUntil: null });
+        setPremiumExpiry(null);
+      }
+      
+      setIsPremium(premium);
+    } catch (error) {
+      console.error("Error updating premium status:", error);
     }
   };
 
-  const checkPremiumStatus = () => {
+  const setPremiumSync = (premium: boolean, expiry?: Date) => {
+    setIsPremium(premium);
+    if (premium && expiry) {
+      setPremiumExpiry(expiry);
+    } else {
+      setPremiumExpiry(null);
+    }
+  };
+
+  const checkPremiumStatus = async () => {
+    try {
+      const user = getAuth().currentUser;
+      if (!user) return false;
+      
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        const premiumUntil = userData.premiumUntil;
+        
+        if (premiumUntil && premiumUntil.toMillis() > Date.now()) {
+          if (!isPremium) {
+            setIsPremium(true);
+            setPremiumExpiry(premiumUntil.toDate());
+          }
+          return true;
+        } else if (premiumUntil && premiumUntil.toMillis() <= Date.now()) {
+          // Premium expired, clear from Firestore
+          await updateDoc(userDocRef, { premiumUntil: null });
+          setIsPremium(false);
+          setPremiumExpiry(null);
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error("Error checking premium status:", error);
+    }
+    
     if (premiumExpiry && new Date() > premiumExpiry) {
-      setPremium(false);
+      setPremiumSync(false);
       return false;
     }
     return isPremium;

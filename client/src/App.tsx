@@ -2,7 +2,7 @@ import "./App.css";
 import { Routes, Route } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { getAuth, signInAnonymously, User } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { firebaseApp, db } from "./firebaseConfig";
 
 import VideoChat from "./screens/VideoChat";
@@ -25,25 +25,17 @@ import { useNavigate } from "react-router-dom";
 interface UserData {
   uid: string;
   onboardingComplete: boolean;
-  gender: string | null;
-  username: string | null;
+  gender?: string | null;
+  referralCode?: string | null;
+  referredBy?: string | null;
+  ownReferralCode: string;
+  referralCount: number;
+  premiumUntil?: Timestamp | null;
+  createdAt: Timestamp;
+  username?: string | null;
   language: string;
-  referredBy: string | null;
-  referralId?: string;
-  referralCount?: number;
   referredAt?: any;
-  createdAt: any;
 }
-
-// Generate a unique referral ID
-const generateUniqueReferralId = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -103,11 +95,23 @@ function App() {
               console.log("Backfilled missing fields:", updateFields);
             }
 
+          if (userData.referredBy === undefined) {
+            updateFields.referredBy = null;
+          }
+          if (userData.referralCode === undefined) {
+            updateFields.referralCode = null;
+          }
+          if (userData.premiumUntil === undefined) {
+            updateFields.premiumUntil = null;
+          }
+          if (!userData.createdAt) {
+            updateFields.createdAt = serverTimestamp();
+          }
             if (!userData.onboardingComplete) {
-              // User exists but onboarding not complete
+          // Backfill missing fields for existing users
               navigate("/onboarding", { replace: true });
-            }
-            // If onboarding is complete, stay on current route or go to home
+          if (!userData.ownReferralCode) {
+            updateFields.ownReferralCode = user.uid.slice(0, 6);
           }
         } catch (error) {
           console.error("Error during user initialization:", error);
