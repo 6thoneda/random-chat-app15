@@ -55,6 +55,7 @@ function App() {
           // Check if user document exists in Firestore
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
+          let userData: UserData | null = null;
 
           if (!userDocSnap.exists()) {
             // New user - create document with initial data
@@ -65,7 +66,7 @@ function App() {
               username: null,
               language: 'en', // Default language
               referredBy: null,
-              referralId: generateUniqueReferralId(),
+              ownReferralCode: user.uid.slice(0, 6),
               referralCount: 0,
               createdAt: new Date()
             };
@@ -75,45 +76,43 @@ function App() {
             
             // Redirect to onboarding for new users
             navigate("/onboarding", { replace: true });
+            return; // Exit early for new users
           } else {
             // Existing user - check onboarding status
-            const userData = userDocSnap.data() as UserData;
+            userData = userDocSnap.data() as UserData;
             console.log("Existing user data:", userData);
 
-            // Backfill referralId and referralCount for existing users
+            // Backfill missing fields for existing users
             const updateFields: Partial<UserData> = {};
-            if (!userData.referralId) {
-              updateFields.referralId = generateUniqueReferralId();
+            if (!userData.ownReferralCode) {
+              updateFields.ownReferralCode = user.uid.slice(0, 6);
             }
             if (typeof userData.referralCount !== 'number') {
               updateFields.referralCount = 0;
             }
-            
+            if (userData.referredBy === undefined) {
+              updateFields.referredBy = null;
+            }
+            if (userData.referralCode === undefined) {
+              updateFields.referralCode = null;
+            }
+            if (userData.premiumUntil === undefined) {
+              updateFields.premiumUntil = null;
+            }
+            if (!userData.createdAt) {
+              updateFields.createdAt = serverTimestamp();
+            }
+
             // Update document if any fields need to be backfilled
             if (Object.keys(updateFields).length > 0) {
               await updateDoc(userDocRef, updateFields);
               console.log("Backfilled missing fields:", updateFields);
             }
-          }
 
-          if (userData.referredBy === undefined) {
-            updateFields.referredBy = null;
-          }
-          if (userData.referralCode === undefined) {
-            updateFields.referralCode = null;
-          }
-          if (userData.premiumUntil === undefined) {
-            updateFields.premiumUntil = null;
-          }
-          if (!userData.createdAt) {
-            updateFields.createdAt = serverTimestamp();
-          }
             if (!userData.onboardingComplete) {
-            }
-          // Backfill missing fields for existing users
               navigate("/onboarding", { replace: true });
-          if (!userData.ownReferralCode) {
-            updateFields.ownReferralCode = user.uid.slice(0, 6);
+              return; // Exit early for users who haven't completed onboarding
+            }
           }
         } catch (error) {
           console.error("Error during user initialization:", error);
